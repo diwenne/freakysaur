@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 #
 # Steve the Freakysaur — 2 Players (stacked lanes) with Winner Overlay
+# + duo tongue restart: if BOTH players hold tongue out for 5s on game over, round resets.
+#
 # Layout matches main1: webcam (900x260) on top, game (900x560) below.
 # P1 plays in the TOP lane, P2 in the BOTTOM lane. Round ends if EITHER dies.
 #
@@ -303,7 +305,7 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 20)
         self.font_small = pygame.font.SysFont("Arial", 16, bold=True)
-        self.font_big = pygame.font.SysFont("Arial", 40, bold=True)   # NEW: winner banner
+        self.font_big = pygame.font.SysFont("Arial", 40, bold=True)   # winner banner
 
         self.bg_cam  = pygame.Surface((self.cam_w,  self.cam_h ), pygame.SRCALPHA); self.bg_cam.fill((16,16,16))
         self.bg_game = pygame.Surface((self.game_w, self.game_h), pygame.SRCALPHA); self.bg_game.fill((247,247,247))
@@ -333,7 +335,11 @@ class Game:
                 self.use_tongue=False
 
         self.game_over=False
-        self.winner_text=""   # NEW: stores "P1 WINS!", "P2 WINS!", or "TIE!"
+        self.winner_text=""
+
+        # --- NEW: duo tongue restart timer ---
+        self.duo_hold = 0.0       # seconds both tongues have been held
+        self.duo_target = 5.0     # need 5 seconds to restart
 
     # ----- helpers -----
     def reset(self):
@@ -341,6 +347,7 @@ class Game:
         self.lane_bottom.reset()
         self.game_over=False
         self.winner_text=""
+        self.duo_hold = 0.0
 
     def update_world_speed(self):
         # Use the higher score to ramp both lanes equally
@@ -399,6 +406,25 @@ class Game:
             tip = self.font_small.render("Press Space / Up / W to play again", True, (80,80,80))
             self.screen.blit(tip, (ox + self.game_w//2 - tip.get_width()//2, rs_rect.bottom + 8))
 
+            # --- NEW: duo tongue restart UI (progress bar + countdown) ---
+            if self.tongue:
+                both_on = self.tongue.get_state(0) and self.tongue.get_state(1)
+                bar_w, bar_h = 300, 12
+                bx = ox + self.game_w//2 - bar_w//2
+                by = rs_rect.bottom + 36
+                # outline
+                pygame.draw.rect(self.screen, (120,120,120), (bx-1,by-1,bar_w+2,bar_h+2), 1)
+                # fill
+                pct = max(0.0, min(1.0, self.duo_hold / self.duo_target))
+                pygame.draw.rect(self.screen, (60,180,90), (bx,by,int(bar_w*pct),bar_h))
+                # label
+                if both_on:
+                    remain = max(0.0, self.duo_target - self.duo_hold)
+                    lbl = self.font_small.render(f"Both tongues: hold {remain:.1f}s to restart", True, (60,60,60))
+                else:
+                    lbl = self.font_small.render("Both tongues: hold to restart", True, (60,60,60))
+                self.screen.blit(lbl, (ox + self.game_w//2 - lbl.get_width()//2, by + bar_h + 6))
+
     # ----- loop -----
     def run(self):
         running=True
@@ -422,10 +448,27 @@ class Game:
                     if e.key==pygame.K_DOWN: self.lane_top.dino.set_duck(False)
                     if e.key==pygame.K_s: self.lane_bottom.dino.set_duck(False)
 
-            # tongue inputs
+            # tongue jumps (rising edge)
             if not self.game_over and self.tongue:
                 if self.tongue.consume_rising_edge(0): self.lane_top.dino.start_jump()
                 if self.tongue.consume_rising_edge(1): self.lane_bottom.dino.start_jump()
+
+            # --- NEW: duo tongue restart timer (only on game-over screen) ---
+            if self.tongue:
+                both_on = self.tongue.get_state(0) and self.tongue.get_state(1)
+                if self.game_over and both_on:
+                    self.duo_hold = min(self.duo_target, self.duo_hold + dt)
+                    if self.duo_hold >= self.duo_target:
+                        self.reset()
+                        # skip rest of loop this frame so UI updates cleanly after reset
+                        self.screen.fill((22,22,22))
+                        self.draw_cam_panel()
+                        self.draw_game_panel()
+                        pygame.display.flip()
+                        continue
+                else:
+                    # reset timer if not both or not on game over screen
+                    self.duo_hold = 0.0
 
             if not self.game_over:
                 # update both lanes
