@@ -70,7 +70,6 @@ class Dino(pygame.sprite.Sprite):
         self.ground_y=ground_y_panel
         self.rect.bottom=self.ground_y
 
-        # tuned for higher jump (more forgiving)
         self.vel_y=0.0; self.gravity=2500.0; self.jump_speed=-900.0
         self.ducking=False; self.alive=True
         self.anim_timer=0.0; self.anim_rate=0.09
@@ -104,7 +103,6 @@ class Dino(pygame.sprite.Sprite):
             self.image = self.run_imgs[self.index]
         self.rect = self.image.get_rect(midbottom=(self.rect.centerx, bottom))
 
-        # collision mask; if ducking, make it a tad friendlier
         if self.ducking:
             duck_surf = pygame.transform.smoothscale(
                 self.image,
@@ -149,7 +147,6 @@ class Bird(pygame.sprite.Sprite):
         self.index=0; self.image=self.images[self.index]
         self.rect=self.image.get_rect()
         self.rect.x=900
-        # LOWER flight levels (fair): jumpable or duckable
         self.rect.y=random.choice([ground_y_panel-95, ground_y_panel-70, ground_y_panel-50])
         self.speed=speed+30
         self.anim_timer=0.0; self.anim_rate=0.09
@@ -170,7 +167,7 @@ class Game:
         pygame.init()
         pygame.display.set_caption("steve the freakysaur")
 
-        # Layout: TOP = webcam panel, BOTTOM = game panel (no overlap)
+        # Layout: TOP = webcam panel, BOTTOM = game panel
         self.cam_w, self.cam_h = 900, 260
         self.game_w, self.game_h = 900, 300
         self.win_w = self.cam_w
@@ -187,31 +184,27 @@ class Game:
         self.bg_cam  = pygame.Surface((self.cam_w,  self.cam_h ), pygame.SRCALPHA); self.bg_cam.fill((16,16,16))
         self.bg_game = pygame.Surface((self.game_w, self.game_h), pygame.SRCALPHA); self.bg_game.fill((247,247,247))
 
-        # Game panel coordinates baseline
         self.ground_y = 258
-        self.GROUND_ALIGN_ADJUST = 0  # if cacti look off: try -2..+2
+        self.GROUND_ALIGN_ADJUST = 0
 
-        # world
         self.ground = Ground(self.ground_y, speed=420)
         self.obstacles = pygame.sprite.Group()
         self.clouds = pygame.sprite.Group()
         self.dino = Dino(self.ground_y)
 
-        # flow
         self.speed=420; self.score=0; self.best=0
         self.game_over=False; self.spawn_timer=0.0; self.spawn_interval=1.1
         self.cloud_timer=0.0
 
-        # UI assets
         self.img_gameover = load_image(os.path.join(ASSETS_DIR,"Other","GameOver.png"))
         self.img_reset    = load_image(os.path.join(ASSETS_DIR,"Other","Reset.png"))
 
-        # tongue
         self.use_tongue = use_tongue and TONGUE_AVAILABLE
         self.tongue=None
         if self.use_tongue:
             try:
-                self.tongue = TongueSwitch(show_window=False, preview_size=(self.cam_w, self.cam_h))
+                # IMPORTANT: mirror happens INSIDE TongueSwitch; do not flip here
+                self.tongue = TongueSwitch(show_window=False, preview_size=(self.cam_w, self.cam_h), mirror=True)
                 self.tongue.start()
                 print("[INFO] Tongue control ON (Space also works).")
             except Exception as e:
@@ -250,20 +243,18 @@ class Game:
         frame = self.tongue.get_preview_rgb() if self.tongue else None
         if frame is not None:
             fh, fw, _ = frame.shape
-            # keep aspect (letterbox if needed)
             scale = min(self.cam_w / fw, self.cam_h / fh)
             dw, dh = int(fw*scale), int(fh*scale)
             surf = pygame.image.frombuffer(frame.tobytes(), (fw, fh), "RGB")
-            surf = pygame.transform.flip(surf, True, False)
+            # DO NOT flip here — text is already correct
             if (dw, dh) != (fw, fh):
                 surf = pygame.transform.smoothscale(surf, (dw, dh))
             dx = ox + (self.cam_w - dw)//2
             dy = oy + (self.cam_h - dh)//2
             self.screen.blit(surf, (dx, dy))
-        # steady status text
+
+        # camera panel HUD (right aligned)
         status = self.tongue.get_state() if self.tongue else False
-        label = self.font_small.render(f"Tongue: {'True' if status else 'False'}", True, (240,240,240))
-        self.screen.blit(label, (ox + 10, oy + 8))
 
     def draw_game_panel(self):
         ox, oy = self.game_offset
