@@ -57,12 +57,18 @@ class Dino(pygame.sprite.Sprite):
            os.path.join(ASSETS_DIR,"Dino","DinoRun2.png")]
     DUCK = [os.path.join(ASSETS_DIR,"Dino","DinoDuck1.png"),
             os.path.join(ASSETS_DIR,"Dino","DinoDuck2.png")]
+    JUMP = [os.path.join(ASSETS_DIR,"Dino","DinoJump1.png"),
+            os.path.join(ASSETS_DIR,"Dino","DinoJump2.png"),
+            os.path.join(ASSETS_DIR,"Dino","DinoJump3.png"),
+            os.path.join(ASSETS_DIR,"Dino","DinoJump4.png")]
+
     def __init__(self, ground_y_panel: int):
         super().__init__()
-        self.run_imgs = load_images(self.RUN)
+        self.run_imgs  = load_images(self.RUN)
         self.duck_imgs = load_images(self.DUCK)
-        self.jump_img = load_image(os.path.join(ASSETS_DIR,"Dino","DinoJump.png"))
-        self.dead_img = load_image(os.path.join(ASSETS_DIR,"Dino","DinoDead.png"))
+        self.jump_imgs = load_images(self.JUMP)
+        self.dead_img  = load_image(os.path.join(ASSETS_DIR,"Dino","DinoDead.png"))
+
         self.index=0
         self.image=self.run_imgs[0]
         self.rect=self.image.get_rect()
@@ -70,40 +76,72 @@ class Dino(pygame.sprite.Sprite):
         self.ground_y=ground_y_panel
         self.rect.bottom=self.ground_y
 
+        # physics
         self.vel_y=0.0; self.gravity=2500.0; self.jump_speed=-900.0
         self.ducking=False; self.alive=True
-        self.anim_timer=0.0; self.anim_rate=0.09
+
+        # animation timers/rates
+        self.anim_timer=0.0
+        self.run_duck_rate=0.09   # run/duck swap speed
+        self.jump_rate=0.07       # jump frame speed
+        self.jump_index=0         # index into JUMP frames
+
         self.mask = pygame.mask.from_surface(self.image)
 
     def start_jump(self):
         if self.alive and abs(self.rect.bottom - self.ground_y) < 2:
             self.vel_y = self.jump_speed
+            self.jump_index = 0
+            self.anim_timer = 0.0
 
     def set_duck(self, on: bool):
-        if self.alive: self.ducking = on and abs(self.rect.bottom - self.ground_y) < 2
+        if self.alive:
+            # Only duck while on ground
+            self.ducking = on and abs(self.rect.bottom - self.ground_y) < 2
+
+    def _airborne(self) -> bool:
+        return self.rect.bottom < self.ground_y - 1 or abs(self.vel_y) > 0.1
 
     def update(self, dt):
-        if not self.alive: return
+        if not self.alive:
+            return
+
+        # gravity + vertical motion
         self.vel_y += self.gravity * dt
         self.rect.y += int(self.vel_y * dt)
+
+        # clamp to ground
         if self.rect.bottom >= self.ground_y:
-            self.rect.bottom = self.ground_y; self.vel_y = 0.0
+            self.rect.bottom = self.ground_y
+            self.vel_y = 0.0
 
         self.anim_timer += dt
-        if self.anim_timer >= self.anim_rate:
-            self.anim_timer -= self.anim_rate
-            self.index = (self.index + 1) % 2
-
         bottom = self.rect.bottom
-        if self.rect.bottom < self.ground_y - 1:
-            self.image = self.jump_img
+
+        if self._airborne():
+            # ---- Jump animation (cycle 1..4 while airborne) ----
+            if self.anim_timer >= self.jump_rate:
+                self.anim_timer -= self.jump_rate
+                self.jump_index = (self.jump_index + 1) % len(self.jump_imgs)
+            self.image = self.jump_imgs[self.jump_index]
         elif self.ducking:
+            # ---- Duck animation ----
+            if self.anim_timer >= self.run_duck_rate:
+                self.anim_timer -= self.run_duck_rate
+                self.index = (self.index + 1) % 2
             self.image = self.duck_imgs[self.index]
         else:
+            # ---- Run animation ----
+            if self.anim_timer >= self.run_duck_rate:
+                self.anim_timer -= self.run_duck_rate
+                self.index = (self.index + 1) % 2
             self.image = self.run_imgs[self.index]
+
+        # keep feet planted after switching surfaces
         self.rect = self.image.get_rect(midbottom=(self.rect.centerx, bottom))
 
-        if self.ducking:
+        # collision mask; slightly friendlier when ducking and grounded
+        if self.ducking and not self._airborne():
             duck_surf = pygame.transform.smoothscale(
                 self.image,
                 (int(self.image.get_width()*0.9), int(self.image.get_height()*0.85))
@@ -147,6 +185,7 @@ class Bird(pygame.sprite.Sprite):
         self.index=0; self.image=self.images[self.index]
         self.rect=self.image.get_rect()
         self.rect.x=900
+        # lower flight levels (jumpable/duckable)
         self.rect.y=random.choice([ground_y_panel-95, ground_y_panel-70, ground_y_panel-50])
         self.speed=speed+30
         self.anim_timer=0.0; self.anim_rate=0.09
@@ -167,7 +206,7 @@ class Game:
         pygame.init()
         pygame.display.set_caption("steve the freakysaur")
 
-        # Layout: TOP = webcam panel, BOTTOM = game panel
+        # Layout: TOP = webcam panel, BOTTOM = game panel (no overlap)
         self.cam_w, self.cam_h = 900, 260
         self.game_w, self.game_h = 900, 300
         self.win_w = self.cam_w
@@ -184,26 +223,31 @@ class Game:
         self.bg_cam  = pygame.Surface((self.cam_w,  self.cam_h ), pygame.SRCALPHA); self.bg_cam.fill((16,16,16))
         self.bg_game = pygame.Surface((self.game_w, self.game_h), pygame.SRCALPHA); self.bg_game.fill((247,247,247))
 
+        # Game panel baseline
         self.ground_y = 258
-        self.GROUND_ALIGN_ADJUST = 0
+        self.GROUND_ALIGN_ADJUST = 0  # if cacti look off: try -2..+2
 
+        # world
         self.ground = Ground(self.ground_y, speed=420)
         self.obstacles = pygame.sprite.Group()
         self.clouds = pygame.sprite.Group()
         self.dino = Dino(self.ground_y)
 
+        # flow
         self.speed=420; self.score=0; self.best=0
         self.game_over=False; self.spawn_timer=0.0; self.spawn_interval=1.1
         self.cloud_timer=0.0
 
+        # UI assets
         self.img_gameover = load_image(os.path.join(ASSETS_DIR,"Other","GameOver.png"))
         self.img_reset    = load_image(os.path.join(ASSETS_DIR,"Other","Reset.png"))
 
+        # tongue
         self.use_tongue = use_tongue and TONGUE_AVAILABLE
         self.tongue=None
         if self.use_tongue:
             try:
-                # IMPORTANT: mirror happens INSIDE TongueSwitch; do not flip here
+                # Mirror is handled inside TongueSwitch; do not flip preview here
                 self.tongue = TongueSwitch(show_window=False, preview_size=(self.cam_w, self.cam_h), mirror=True)
                 self.tongue.start()
                 print("[INFO] Tongue control ON (Space also works).")
@@ -246,15 +290,16 @@ class Game:
             scale = min(self.cam_w / fw, self.cam_h / fh)
             dw, dh = int(fw*scale), int(fh*scale)
             surf = pygame.image.frombuffer(frame.tobytes(), (fw, fh), "RGB")
-            # DO NOT flip here — text is already correct
             if (dw, dh) != (fw, fh):
                 surf = pygame.transform.smoothscale(surf, (dw, dh))
             dx = ox + (self.cam_w - dw)//2
             dy = oy + (self.cam_h - dh)//2
             self.screen.blit(surf, (dx, dy))
-
-        # camera panel HUD (right aligned)
-        status = self.tongue.get_state() if self.tongue else False
+        # (optional) HUD: right-align tongue state
+        if self.tongue:
+            status = self.tongue.get_state()
+            lbl = self.font_small.render(f"Tongue: {'True' if status else 'False'}", True, (230,230,230))
+            self.screen.blit(lbl, (ox + self.cam_w - lbl.get_width() - 10, oy + 8))
 
     def draw_game_panel(self):
         ox, oy = self.game_offset
