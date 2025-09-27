@@ -1,0 +1,40 @@
+Chrome-Dino-Runner/
+
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+
+# --- Virtual environments ---
+venv/
+.venv/
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+
+# --- Logs & Caches ---
+*.log
+.cache/
+.mypy_cache/
+.pytest_cache/
+coverage/
+
+# --- Build / Dist ---
+build/
+dist/
+*.tar.gz
+*.whl
