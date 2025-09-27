@@ -208,7 +208,7 @@ class Game:
 
         # Layout: TOP = webcam panel, BOTTOM = game panel (no overlap)
         self.cam_w, self.cam_h = 900, 260
-        self.game_w, self.game_h = 900, 300
+        self.game_w, self.game_h = 900, 560
         self.win_w = self.cam_w
         self.win_h = self.cam_h + self.game_h
 
