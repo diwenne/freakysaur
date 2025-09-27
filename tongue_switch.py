@@ -67,7 +67,6 @@ class TongueSwitch:
         self._state = False          # continuous detection (no debounce)
         self._prev_state = False     # for rising-edge
         self._last_event_time = 0.0  # debounce timer
-
         self._preview = None
 
         self._lock = threading.Lock()
@@ -168,7 +167,8 @@ class TongueSwitch:
                                         cv2.rectangle(annotated, (x0+rx, y0+ry), (x0+rx+rww, y0+ry+rhh), (0, 60, 255), 2)
                                 # Text metrics
                                 txt = f"open={open_px}px  frac={frac:.2f}  tongue={'True' if tongue_present else 'False'}"
-                                cv2.putText(annotated, txt, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
+                                cv2.putText(annotated, txt, (annotated.shape[1] - 10   # <-- right align on the raw (unflipped) frame
+, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
 
                             except cv2.error:
                                 pass
