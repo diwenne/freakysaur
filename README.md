@@ -43,8 +43,8 @@ you'll need python 3.8 or higher. that's pretty much it!
 
 1. **clone this bad boy**
    ```bash
-   git clone <your-repo-url>
-   cd tongue_jump
+   git clone https://github.com/diwenne/freakysaur.git
+   cd freakysaur
    ```
 
 2. **set up virtual environment** (recommended)
