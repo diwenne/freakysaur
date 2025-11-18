@@ -339,7 +339,7 @@ class Game:
 
         # --- NEW: duo tongue restart timer ---
         self.duo_hold = 0.0       # seconds both tongues have been held
-        self.duo_target = 5.0     # need 5 seconds to restart
+        self.duo_target = 3.0     # need 5 seconds to restart
 
     # ----- helpers -----
     def reset(self):
